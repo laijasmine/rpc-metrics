@@ -35,59 +35,67 @@ volunteer_sheet_clean <- volunteer_sheet |>
   mutate(
     month = month(`Date of Volunteer Activity`),
     year = year(`Date of Volunteer Activity`),
-    member = str_replace_all(`Column 2`, "\\b([A-Za-z])[A-Za-z]*\\b", "\\1"))
+    member = str_replace_all(`Column 2`, "\\b([A-Za-z])[A-Za-z]*\\b", "\\1")
+  ) |>
+  filter(`Column 2` != "Justin Ng")
+
+branch_members <- membership |>
+  count(`Assigned Branch`)
 ```
 
 Hours as of `r Sys.Date()`
-
-```{r}
-  # volunteer_sheet_clean |>
-  #   group_by(`Column 2`) |>
-  #   summarise(sum(Hours))
-```
   
 # Total Volunteer Hours
 ```{r}
-  volunteer_sheet_clean |>
+volunteer_sheet_clean |>
   pull(Hours) |>
   sum()
 ```
 
 # Hours By Branch
 ```{r}
-programming_plot <- volunteer_sheet_clean |> 
-  group_by(month, Branch) |> 
-  summarise(total_hours = sum(Hours)) |> 
+programming_plot <- volunteer_sheet_clean |>
+  group_by(month, Branch) |>
+  summarise(total_hours = sum(Hours)) |>
   ggplot(aes(
     x = month,
     y = total_hours,
     fill = Branch
-  )) + 
-    geom_col()
-  
-  
+  )) +
+  geom_col()
+
+
 ggplotly(programming_plot)
+
+programming_plot_branch <- programming_plot +
+  facet_wrap(~Branch) +
+  theme(legend.position = "none")
+
+ggplotly(programming_plot_branch)
 ```
 
 ```{r}
 volunteer_sheet_clean |>
   group_by(Branch) |>
-  summarise("branch hours" = sum(Hours)) |>
+  summarise("Total Branch Hours" = round(sum(Hours))) |>
+  left_join(branch_members, by = join_by("Branch" == "Assigned Branch")) |>
+  mutate("Approximate Hours Per Person" = round(`Total Branch Hours` / n, 2)) |>
+  rename("Number of members" = n) |>
   datatable()
 ```
 
 ```{r}
-volunteer_sheet_clean |>
-  group_by(year, month, Branch) |>
-  summarise("branch hours" = sum(Hours)) |>
-  datatable()
+# volunteer_sheet_clean |>
+#   group_by(year, month, Branch) |>
+#   summarise("branch hours" = sum(Hours)) |>
+#   datatable()
 
 # plot_hours <- volunteer_sheet_clean |>
 # ggplot(aes(
 #     x = month,
 #     y = Hours,
 #     fill = `Programming Event you volunteered for (if any)`
-#   )) + 
+#   )) +
 #     geom_col() +
 #     facet_grid(~Branch)
 
@@ -98,19 +106,21 @@ volunteer_sheet_clean |>
 ## Volunteer Hour Description
 Extracted the first word from the description (usually the most important word. Plot shows the top 10 items.
 ```{r}
-volunteer_sheet_activity <- volunteer_sheet_clean |> 
-  mutate(activity = tolower(`Description of volunteer activity`),
-  activity = str_extract(activity, "^[^\\s]+")) 
-  
-top_activity <- volunteer_sheet_activity |> 
-  filter(!is.na(activity)) |> 
-  count(activity) |> 
+volunteer_sheet_activity <- volunteer_sheet_clean |>
+  mutate(
+    activity = tolower(`Description of volunteer activity`),
+    activity = str_extract(activity, "^[^\\s]+")
+  )
+
+top_activity <- volunteer_sheet_activity |>
+  filter(!is.na(activity)) |>
+  count(activity) |>
   arrange(desc(n))
 
-plot_description <- volunteer_sheet_activity |> 
-  filter(activity %in% top_activity$activity[1:10]) |> 
-  group_by(month, activity) |> 
-  summarise(total_hours = sum(Hours)) |> 
+plot_description <- volunteer_sheet_activity |>
+  filter(activity %in% top_activity$activity[1:10]) |>
+  group_by(month, activity) |>
+  summarise(total_hours = sum(Hours)) |>
   ggplot(aes(x = month, y = total_hours, fill = activity)) +
   geom_col()
 
@@ -121,7 +131,7 @@ ggplotly(plot_description)
 ```{r}
 volunteer_sheet_clean |>
   group_by(`Programming Event you volunteered for (if any)`) |>
-  summarise("Program Hours" = sum(Hours)) |>
+  summarise("Program Hours" = round(sum(Hours), 2)) |>
   datatable()
 ```
 
@@ -134,30 +144,38 @@ hours_plot <- volunteer_sheet_clean |>
     x = `Date of Volunteer Activity`,
     y = Hours,
     color = `Branch`
-  )) + 
-    geom_point()
+  )) +
+  geom_point()
 
 ggplotly(hours_plot)
 ```
 
+Check for invalid hours
+```{r}
+# volunteer_sheet_clean |>
+#   filter(Hours < 0)
+```
+
 ```{r}
 volunteer_sheet_branches <- volunteer_sheet_clean |>
-    filter(!is.na(Branch) | Branch != "#N/A")
+  filter(!is.na(Branch) | Branch != "#N/A")
 
 available_branches <- unique(volunteer_sheet_branches$Branch)
 
 plot_list <- htmltools::tagList()
 for (branch in available_branches) {
-    volunteer_branch <- volunteer_sheet_branches |>
-    filter(branch == Branch) |> 
-  ggplot(aes(
-    x = `Date of Volunteer Activity`,
-    y = Hours,
-    color = member
-  )) + 
+  volunteer_branch <- volunteer_sheet_branches |>
+    filter(branch == Branch) |>
+    ggplot(aes(
+      x = `Date of Volunteer Activity`,
+      y = Hours,
+      color = member,
+      group = member
+    )) +
     geom_point() +
+    geom_line() +
     ggtitle(branch)
-# Append a header and the plot to the list
+  # Append a header and the plot to the list
   plot_list <- htmltools::tagList(
     plot_list,
     ggplotly(volunteer_branch)
