@@ -1,0 +1,147 @@
+---
+title: "Instructor Pay"
+format: html
+knitr:
+  opts_chunk: 
+    collapse: true
+    comment: "#" 
+    echo: false
+    message: false
+---
+
+```{r setup}
+library(googlesheets4)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(viridis)
+library(forcats)
+library(plotly)
+library(DT)
+library(purrr)
+library(rpc)
+```
+
+```{r}
+class_sheet <- "https://docs.google.com/spreadsheets/d/1vivUrj8WSWI2hHTOlgdWfiHdyTRd0zCEIX9xJnHAf54/edit?gid=1058139562#gid=1058139562"
+sessions <- c("2025 Fall", "2026 Winter", "2026 Spring")
+
+class_schedule <- map(sessions, ~ read_sheet(class_sheet, sheet = .x))
+
+names(class_schedule) <- sessions
+```
+
+```{r}
+calculate_class_revenue <- function(df, type, enrolled) {
+  class_df <- filter(df, class_type == type) |>
+    mutate(total_revenue = cost * enrolled)
+
+  sum(class_df$total_revenue)
+}
+```
+
+## Public classes
+```{r}
+#map(class_schedule, ~ calculate_class_revenue(.x, "public", 10))
+other_expenses <- 1874
+```
+
+```{r calculations}
+instructors_base <- data.frame(
+  name = c("Jean Fung", "Evan Leung", "David Liu"),
+  number_of_courses = c(1, 3, 3),
+  rate = c(36, 36, 36)
+)
+
+instructors <- instructors_base
+
+for (raise in 1:10) {
+  instructors <- rbind(
+    instructors,
+    instructors_base |> mutate(rate = rate + raise)
+  )
+}
+
+instructor_pay <- instructors |>
+  rowwise() |>
+  mutate(
+    pay = calculate_instructor_pay(
+      rate,
+      "public",
+      number_of_courses,
+      name
+    )
+  )
+
+revenue <- data.frame(
+  class_price = seq(from = 275, to = 350, by = 10)
+) |>
+  mutate(
+    total = 70 * class_price,
+    after_city_cut = total * 0.75,
+    after_other_expenses = after_city_cut - other_expenses,
+    col_name = glue::glue("Class Price {class_price}")
+  )
+
+projected_pay <- instructor_pay |>
+  group_by(rate) |>
+  summarise(total_instructor_compensation = sum(pay)) |>
+  mutate(
+    revenue_percent = ((19250 - total_instructor_compensation) / 19250) * 100
+  )
+
+projected_pay |>
+  datatable()
+
+revenue |>
+  datatable()
+
+pay_plot <- ggplot(projected_pay) +
+  #geom_line(aes(x = rate, y = 14414.58)) +
+  geom_point(aes(x = rate, y = revenue_275))
+
+ggplotly(pay_plot)
+```
+
+## Member classes
+
+```{r}
+#map(class_schedule, ~ calculate_class_revenue(.x, "member", 10))
+
+instructors_base <- data.frame(
+  name = c("David Liu"),
+  number_of_courses = c(1),
+  rate = c(36)
+)
+
+instructors <- instructors_base
+
+for (raise in 1:10) {
+  instructors <- rbind(
+    instructors,
+    instructors_base |> mutate(rate = rate + raise)
+  )
+}
+
+instructors |>
+  rowwise() |>
+  mutate(
+    pay = calculate_instructor_pay(
+      rate,
+      "member",
+      number_of_courses,
+      name
+    )
+  ) |>
+  select(-name) |>
+  datatable()
+
+data.frame(
+  class_price = seq(from = 165, to = 250, by = 10)
+) |>
+  mutate(
+    total = 10 * class_price,
+    after_other_expenses = total - 1102.4
+  ) |>
+  datatable()
+```
