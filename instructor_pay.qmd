@@ -130,9 +130,9 @@ for (class_price in revenue$class_price) {
 
 The projected pay for each dollar increase in pay:
 
-- The current instructor pay rate is at $36/hour.
-- The previous pay increase was $30 (4-5 years ago)
-- Keep in mind during this time there was considerable cost of living increases and inflation. A estimate of % increase per year can be found - Cost of living example - https://mpp.pensionsbc.ca/cost-of-living-adjustments
+- The current instructor pay rate is at `$36/hour`.
+- The previous pay increase was `$30 (4-5 years ago)`
+- Keep in mind during this time there was considerable cost of living increases and inflation. A estimate of % increase per year can be found - [Cost of living example](https://mpp.pensionsbc.ca/cost-of-living-adjustments)
 - Instructors are not paid vacation or any other benefits and will need to pay any other deductions on their own.
 - We do provide clay for their use during class.
 ```{r}
@@ -141,7 +141,7 @@ projected_pay |>
 ```
 
 
-Public classes are 9 classes for $275 per students in 2026 an increase of  $25 from $250 from previous years. We are currently running 7 sessions of 10 students each totaling 70 students per session.
+Public classes are 9 classes for $275 per students in 2026 an increase of  $25 from $250 from previous years. We are currently running 7 sessions of 10 students each (total of 70 students per session).
 
 For an increase in the class cost per student (`class_price`). The `total` expected income and deductions `after_city_cut` of 25% and `after_other expenses` (glaze, square fees, insurance, clay etc.)
 ```{r}
@@ -149,11 +149,13 @@ revenue |>
   datatable()
 ```
 
-Table of the instructor expenses versus the percentage of revenue (before any deductions). I would use this to determine the approximate ratio that we want to keep the instructor pay at and adjust class prices accordingly so we make a reasonable profit with future increases.
+Table of the instructor expenses versus the total profit and percentage of total revenue for increasing class prices. 
 
-I've included previous prices ($250) and rates ($30) as a point of comparison.
+I would use this to determine the approximate ratio that we want to keep the instructor pay at and adjust class prices accordingly so we make a reasonable profit with future increases. 
 
-I would suggest at least a $4 increase to $40 and also consider a increase in class costs to off set the increased cost.
+I've included previous prices and rates as a point of comparison. In 2025 we were still at $250 per student and $36 / hour for instructors. Increase to $275 per student happened in Winter 2026 in anticipation of the increased city cut.
+
+I would suggest at least a `$4` increase to $40 per hour and also consider a increase in class costs to off set the increased cost.
 ```{r}
 percent_revenue |>
   datatable()
