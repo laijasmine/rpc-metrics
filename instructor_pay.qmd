@@ -1,5 +1,5 @@
 ---
-title: "Instructor Pay"
+title: "Instructor Pay 2026"
 format: html
 knitr:
   opts_chunk: 
@@ -40,6 +40,15 @@ calculate_class_revenue <- function(df, type, enrolled) {
 }
 ```
 
+## Previous work
+A preliminary break down of class costs can be found in the [google sheet](https://docs.google.com/spreadsheets/d/1-EH4VNp-e8omI9PokcXmci-RPvE_Omm7u9u16iKgQ5Q/edit?pli=1&gid=0#gid=0)
+
+The [instructor pay analysis in comparable studios](https://docs.google.com/document/d/1EjXD1VmmGHBGLcv-ICNnXFTIaojOH6x5JEzzPV9auXA/edit?tab=t.xstvt0mq2lke#heading=h.zbl0ep6q3q0u) done by Crystal Yee - with ChatGPT assistance
+
+- I'm unsure how comparable these rates are or how they compare to our current instructors. 
+
+I believe there was also a class comparison some where as well but I do not have access to it.
+
 ## Public classes
 ```{r}
 #map(class_schedule, ~ calculate_class_revenue(.x, "public", 10))
@@ -55,7 +64,7 @@ instructors_base <- data.frame(
 
 instructors <- instructors_base
 
-for (raise in 1:15) {
+for (raise in 1:20) {
   instructors <- rbind(
     instructors,
     instructors_base |> mutate(rate = rate + raise)
@@ -88,49 +97,71 @@ projected_pay <- instructor_pay |>
 
 percent_revenue <- projected_pay
 for (class_price in revenue$class_price) {
-  class_increase <- class_price * 70
+  class_income <- (class_price * 70)
 
   percent_revenue <- percent_revenue |>
     mutate(
-      "revenue_percent_{{class_price}}" := ((class_increase -
-        total_instructor_compensation) /
-        class_increase) *
-        100
+      "profit_{{class_price}}" := (class_income * 0.75) -
+        other_expenses -
+        total_instructor_compensation,
+      "revenue_percent_{{class_price}}" := round(
+        ((class_income -
+          total_instructor_compensation) /
+          class_income *
+          100),
+        1
+      )
     )
 }
 
-percent_revenue_after_city <- projected_pay
-for (class_price in revenue$class_price) {
-  class_increase <- (class_price * 70) * 0.75
+# percent_revenue_after_city <- projected_pay
+# for (class_price in revenue$class_price) {
+#   class_increase <- (class_price * 70) * 0.75
 
-  percent_revenue_after_city <- percent_revenue_after_city |>
-    mutate(
-      "revenue_percent_{{class_price}}" := ((class_increase -
-        total_instructor_compensation) /
-        class_increase) *
-        100
-    )
-}
-
-
-projected_pay |>
-  datatable()
-
-revenue |>
-  datatable()
-
-percent_revenue |>
-  datatable()
-
-# pay_plot <- ggplot(projected_pay) +
-#   #geom_line(aes(x = rate, y = 14414.58)) +
-#   geom_point(aes(x = rate, y = revenue_275))
-
-# ggplotly(pay_plot)
+#   percent_revenue_after_city <- percent_revenue_after_city |>
+#     mutate(
+#       "revenue_percent_{{class_price}}" := ((class_increase -
+#         total_instructor_compensation) /
+#         class_increase) *
+#         100
+#     )
+#}
 ```
 
-## Member classes
+The projected pay for each dollar increase in pay:
 
+- The current instructor pay rate is at $36/hour.
+- The previous pay increase was $30 (4-5 years ago)
+- Keep in mind during this time there was considerable cost of living increases and inflation. A estimate of % increase per year can be found - Cost of living example - https://mpp.pensionsbc.ca/cost-of-living-adjustments
+- Instructors are not paid vacation or any other benefits and will need to pay any other deductions on their own.
+- We do provide clay for their use during class.
+```{r}
+projected_pay |>
+  datatable()
+```
+
+
+Public classes are 9 classes for $275 per students in 2026 an increase of  $25 from $250 from previous years. We are currently running 7 sessions of 10 students each totaling 70 students per session.
+
+For an increase in the class cost per student (`class_price`). The `total` expected income and deductions `after_city_cut` of 25% and `after_other expenses` (glaze, square fees, insurance, clay etc.)
+```{r}
+revenue |>
+  datatable()
+```
+
+Table of the instructor expenses versus the percentage of revenue (before any deductions). I would use this to determine the approximate ratio that we want to keep the instructor pay at and adjust class prices accordingly so we make a reasonable profit with future increases.
+
+I've included previous prices ($250) and rates ($30) as a point of comparison.
+
+I would suggest at least a $4 increase to $40 and also consider a increase in class costs to off set the increased cost.
+```{r}
+percent_revenue |>
+  datatable()
+```
+
+
+## Member classes
+Pay increase for member classes by a 1 dollar per hour increase:
 ```{r}
 #map(class_schedule, ~ calculate_class_revenue(.x, "member", 10))
 
@@ -161,7 +192,10 @@ instructors |>
   ) |>
   select(-name) |>
   datatable()
+```
 
+Member classes have operated at more or less a just breakeven model to make sure we cover our costs. It is more of a member benefit.
+```{r}
 data.frame(
   class_price = seq(from = 165, to = 250, by = 10)
 ) |>
@@ -171,3 +205,9 @@ data.frame(
   ) |>
   datatable()
 ```
+
+### Follow up
+
+- Because we have kept prices the stagnant for several years we have some adjustment to do and we may need to introduce it gradually.
+-  Annual class cost and pay review to make sure we keep up with current costs
+- Make sure we keep up with Instructors
