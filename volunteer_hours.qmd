@@ -188,6 +188,50 @@ volunteer_sheet_clean |>
   datatable()
 ```
 
+Volunteer hours are largely top heavy
+```{r}
+volunteer_total_hours <- volunteer_sheet_clean |>
+  group_by(`Column 2`) |>
+  summarise("Total hours" = sum(Hours)) |>
+  arrange(`Total hours`) |>
+  mutate(
+    member_factor = factor(
+      `Column 2`,
+      levels = `Column 2`
+    ),
+    min_hours_met = ifelse(`Total hours` > 34, "over", "under")
+  )
+
+volunteer_total_plot <- ggplot(aes(x = member_factor, y = `Total hours`)) +
+  geom_col(aes(fill = min_hours_met)) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.key = element_blank()
+  )
+
+ggplotly(volunteer_total_plot)
+
+volunteer_branch_plot <- volunteer_total_hours |>
+  left_join(membership, by = join_by(`Column 2` == `Full Name`)) |>
+  filter(
+    !(`Assigned Branch` %in%
+      c("Exempt", "Operations - Treasurer", "Operations - Tres assistant"))
+  ) |>
+  ggplot(aes(x = member_factor, y = `Total hours`)) +
+  geom_col(aes(fill = `Assigned Branch`)) +
+  geom_hline(yintercept = 34) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.key = element_blank()
+  )
+
+ggplotly(volunteer_branch_plot)
+```
+
 # Quality control
 
 ## Check for outlier points
