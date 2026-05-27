@@ -1,0 +1,131 @@
+---
+title: "Volunteer Hours"
+format: html
+knitr:
+  opts_chunk: 
+    collapse: true
+    comment: "#" 
+    echo: false
+    message: false
+---
+
+```{r setup}
+library(googlesheets4)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(DT)
+library(glue)
+library(tidyr)
+library(plotly)
+library(stringr)
+```
+
+```{r google_sheet}
+membership_sheet <- "https://docs.google.com/spreadsheets/d/1Ldrcx_iVWi2Bv3GQoIHE2hOkf0Ah-nKVK3GFnXBXfts/edit?gid=1039957161#gid=1039957161"
+membership <- read_sheet(membership_sheet, sheet = "2025-2026")
+
+volunteer_sheet <- "https://docs.google.com/spreadsheets/d/1Tj7O8SzHRy_FgNHE84TD9od4CIbv_WVIpoqORUdNB8s/edit?gid=303571686#gid=303571686"
+volunteer_sheet <- read_sheet(volunteer_sheet, sheet = "Total Raw Data")
+```
+
+
+```{r}
+ordered_year_month <- purrr::map(
+  2025:year(Sys.Date()),
+  ~ paste(.x, month.abb)
+) |>
+  unlist()
+
+volunteer_sheet_clean <- volunteer_sheet |>
+  mutate(
+    month = month(`Date of Volunteer Activity`, label = TRUE),
+    year = year(`Date of Volunteer Activity`),
+    year_month = glue("{year} {month}"),
+    year_month_factor = factor(
+      year_month,
+      levels = ordered_year_month
+    ),
+    member = str_replace_all(`Column 2`, "\\b([A-Za-z])[A-Za-z]*\\b", "\\1")
+  ) |>
+  filter(`Column 2` != "Justin Ng") |>
+  # add branches instead of relying on the sheet
+  select(-Branch) |>
+  left_join(membership, by = join_by("Column 2" == "Full Name"))
+
+branch_members <- membership |>
+  count(`Assigned Branch`)
+```
+
+Hours as of `r Sys.Date()`
+  
+# Total Volunteer Hours
+Total number of hours contributed `r sum(volunteer_sheet_clean$Hours, na.rm = TRUE)`
+
+# Hours By Branch
+```{r}
+programming_plot <- volunteer_sheet_clean |>
+  filter(!(`Assigned Branch` %in% c("Exempt")), !is.na(`Assigned Branch`)) |>
+  group_by(year_month_factor, `Assigned Branch`) |>
+  summarise(total_hours = sum(Hours)) |>
+  ggplot(aes(
+    x = year_month_factor,
+    y = total_hours,
+    fill = `Assigned Branch`
+  )) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+ggplotly(programming_plot)
+
+programming_plot_branch <- programming_plot +
+  facet_wrap(~`Assigned Branch`) +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  )
+
+ggplotly(programming_plot_branch)
+```
+
+```{r}
+volunteer_sheet_clean |>
+  group_by(`Assigned Branch`) |>
+  summarise("Total Branch Hours" = round(sum(Hours))) |>
+  left_join(
+    branch_members,
+    by = join_by("Assigned Branch" == "Assigned Branch")
+  ) |>
+  mutate("Approximate Hours Per Person" = round(`Total Branch Hours` / n, 2)) |>
+  rename("Number of members" = n) |>
+  datatable()
+```
+
+Volunteer hours are largely top heavy
+```{r}
+volunteer_total_hours <- volunteer_sheet_clean |>
+  group_by(`Column 2`) |>
+  summarise("Total hours" = sum(Hours)) |>
+  arrange(`Total hours`) |>
+  mutate(
+    member_factor = factor(
+      `Column 2`,
+      levels = `Column 2`
+    ),
+    min_hours_met = ifelse(`Total hours` > 34, "over", "under")
+  )
+
+volunteer_total_plot <- ggplot(
+  volunteer_total_hours,
+  aes(x = member_factor, y = `Total hours`)
+) +
+  geom_col(aes(fill = min_hours_met)) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.key = element_blank()
+  )
+
+ggplotly(volunteer_total_plot)
+```
