@@ -78,7 +78,7 @@ volunteer_totals <- volunteer_sheet_clean |>
   summarise(total_hours = sum(Hours, na.rm = TRUE))
 
 members_over <- sum(volunteer_totals$total_hours > hours_threshold)
-members_under <- sum(volunteer_totals$total_hours <= hours_threshold)
+members_under <- total_members - members_over - total_exec - exempt
 pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
 ```
 
@@ -88,7 +88,7 @@ pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
 
 > *Data as of `r format(Sys.Date(), "%B %d, %Y")`*
 
-These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year where there are `r exempt` members who have requested accommodations of `r total_members` members of RPC.
+These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year. There are `r exempt` members who have requested accommodations of the total `r total_members` members.
 
 ```{r kpi_cards}
 # Inline KPI summary rendered as an HTML table for visual emphasis
@@ -178,6 +178,9 @@ datatable(
 
 The chart below shows contribution trends over time. Hover over bars for details.
 
+::: {.callout-warning title="Hours by branch assigned"}
+Members can still volunteer at other branches. This is not reflective of all the hours needed for the work of each branch.
+:::
 ```{r branch_monthly_chart}
 branch_monthly <- volunteer_sheet_clean |>
   filter(!(`Assigned Branch` %in% c("Exempt")), !is.na(`Assigned Branch`)) |>
@@ -254,7 +257,7 @@ ggplotly(p_facet, tooltip = "text")
 ### Are You Meeting the Minimum?
 
 The `r hours_threshold`-hour minimum is required for membership in good standing.
-Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold. This does not include the exec committee (7 current, 2 past). There are also about `r total_members - nrow(volunteer_totals) - total_exec` members who haven't logged any hours
+Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold. The recorded hours does not include the exec committee (7 current, 2 past). There are also about `r total_members - nrow(volunteer_totals) - total_exec` members who haven't logged any hours
 
 ```{r individual_chart}
 volunteer_totals_plot <- volunteer_sheet_clean |>
