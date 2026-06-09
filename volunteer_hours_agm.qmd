@@ -70,6 +70,8 @@ exempt <- branch_members |>
 total_hours <- sum(volunteer_sheet_clean$Hours, na.rm = TRUE)
 total_members <- nrow(membership)
 hours_threshold <- 34 # minimum required hours
+reduced_minimum <- 20
+total_exec <- 9
 
 volunteer_totals <- volunteer_sheet_clean |>
   group_by(`Column 2`) |>
@@ -86,7 +88,7 @@ pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
 
 > *Data as of `r format(Sys.Date(), "%B %d, %Y")`*
 
-These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year where there are `r exempt` of `r total_members`.
+These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year where there are `r exempt` members who have requested accommodations of `r total_members` members of RPC.
 
 ```{r kpi_cards}
 # Inline KPI summary rendered as an HTML table for visual emphasis
@@ -252,7 +254,7 @@ ggplotly(p_facet, tooltip = "text")
 ### Are You Meeting the Minimum?
 
 The `r hours_threshold`-hour minimum is required for membership in good standing.
-Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold.
+Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold. This does not include the exec committee (7 current, 2 past). There are also about `r total_members - nrow(volunteer_totals) - total_exec` members who haven't logged any hours
 
 ```{r individual_chart}
 volunteer_totals_plot <- volunteer_sheet_clean |>
@@ -315,6 +317,8 @@ p_individual
 ::: {.callout-warning title="Action required — members below minimum"}
 **`r members_under` members** have not yet reached `r hours_threshold` hours.
 If you are below the line, please contact your branch coordinator to find upcoming volunteer opportunities before the membership year closes.
+
+Also note some members joined later in the year and are only required to complete `r reduced_minimum` hours
 :::
 
 *Report generated automatically from club records on `r format(Sys.Date(), "%B %d, %Y")`.
