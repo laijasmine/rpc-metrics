@@ -1,0 +1,321 @@
+---
+title: "Richmond Potters' Club — Volunteer Hours Report"
+subtitle: "Annual General Meeting `r format(Sys.Date(), '%B %d, %Y')`"
+format:
+  html:
+    toc: true
+    toc-title: "Report Sections"
+    toc-depth: 2
+    theme: cosmo
+    css: styles.css
+    embed-resources: true
+    page-layout: full
+knitr:
+  opts_chunk:
+    collapse: true
+    comment: "#"
+    echo: false
+    message: false
+    warning: false
+---
+
+```{r setup}
+library(googlesheets4)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(DT)
+library(glue)
+library(tidyr)
+library(plotly)
+library(stringr)
+library(purrr)
+```
+
+```{r google_sheet}
+membership_sheet <- "https://docs.google.com/spreadsheets/d/1Ldrcx_iVWi2Bv3GQoIHE2hOkf0Ah-nKVK3GFnXBXfts/edit?gid=1039957161#gid=1039957161"
+membership <- read_sheet(membership_sheet, sheet = "2025-2026")
+
+volunteer_sheet_url <- "https://docs.google.com/spreadsheets/d/1Tj7O8SzHRy_FgNHE84TD9od4CIbv_WVIpoqORUdNB8s/edit?gid=303571686#gid=303571686"
+volunteer_sheet <- read_sheet(volunteer_sheet_url, sheet = "Total Raw Data")
+```
+
+```{r data_prep}
+ordered_year_month <- map(
+  2025:year(Sys.Date()),
+  ~ paste(.x, month.abb)
+) |>
+  unlist()
+
+volunteer_sheet_clean <- volunteer_sheet |>
+  mutate(
+    month = month(`Date of Volunteer Activity`, label = TRUE),
+    year = year(`Date of Volunteer Activity`),
+    year_month = glue("{year} {month}"),
+    year_month_factor = factor(year_month, levels = ordered_year_month),
+    member = str_replace_all(`Column 2`, "\\b([A-Za-z])[A-Za-z]*\\b", "\\1")
+  ) |>
+  filter(`Column 2` != "Justin Ng") |>
+  select(-Branch) |>
+  left_join(membership, by = join_by("Column 2" == "Full Name"))
+
+branch_members <- membership |>
+  count(`Assigned Branch`)
+
+exempt <- branch_members |>
+  filter(`Assigned Branch` == "Exempt") |>
+  pull(n)
+
+# Summary stats used across sections
+total_hours <- sum(volunteer_sheet_clean$Hours, na.rm = TRUE)
+total_members <- nrow(membership)
+hours_threshold <- 34 # minimum required hours
+
+volunteer_totals <- volunteer_sheet_clean |>
+  group_by(`Column 2`) |>
+  summarise(total_hours = sum(Hours, na.rm = TRUE))
+
+members_over <- sum(volunteer_totals$total_hours > hours_threshold)
+members_under <- sum(volunteer_totals$total_hours <= hours_threshold)
+pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
+```
+
+---
+
+## 📊 Key Highlights {#highlights}
+
+> *Data as of `r format(Sys.Date(), "%B %d, %Y")`*
+
+These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year where there are `r exempt` of `r total_members`.
+
+```{r kpi_cards}
+# Inline KPI summary rendered as an HTML table for visual emphasis
+kpi_html <- glue(
+  '
+<div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1rem 0 2rem 0;">
+
+  <div style="flex:1; min-width:180px; background:#2c5f2e; color:white;
+              border-radius:12px; padding:1.5rem; text-align:center;">
+    <div style="font-size:2.8rem; font-weight:700; line-height:1;">
+      {format(round(total_hours), big.mark=",")}
+    </div>
+    <div style="font-size:1rem; margin-top:0.4rem; opacity:0.85;">
+      Total Hours Contributed
+    </div>
+  </div>
+
+  <div style="flex:1; min-width:180px; background:#1a3a5c; color:white;
+              border-radius:12px; padding:1.5rem; text-align:center;">
+    <div style="font-size:2.8rem; font-weight:700; line-height:1;">
+      {pct_compliant}%
+    </div>
+    <div style="font-size:1rem; margin-top:0.4rem; opacity:0.85;">
+      Members Meeting {hours_threshold}-Hour Minimum
+    </div>
+  </div>
+
+  <div style="flex:1; min-width:180px; background:#7a4f1e; color:white;
+              border-radius:12px; padding:1.5rem; text-align:center;">
+    <div style="font-size:2.8rem; font-weight:700; line-height:1;">
+      {round(total_hours / total_members, 1)}
+    </div>
+    <div style="font-size:1rem; margin-top:0.4rem; opacity:0.85;">
+      Average Hours Per Member
+    </div>
+  </div>
+
+</div>
+'
+)
+
+htmltools::HTML(kpi_html)
+```
+
+::: {.callout-tip title="What this means for members"}
+A strong year overall — thank you to everyone who contributed! See below for the branch breakdown and to check your individual standing against the `r hours_threshold`-hour minimum.
+:::
+
+---
+
+## 🏛️ Hours by Branch {#by-branch}
+
+### Branch Summary Table
+
+Use this table to see how your branch performed relative to its size.
+
+```{r branch_table}
+branch_summary <- volunteer_sheet_clean |>
+  filter(!(`Assigned Branch` %in% c("Exempt")), !is.na(`Assigned Branch`)) |>
+  group_by(`Assigned Branch`) |>
+  summarise(`Total Branch Hours` = round(sum(Hours, na.rm = TRUE))) |>
+  left_join(branch_members, by = "Assigned Branch") |>
+  mutate(
+    `Average Hours Per Member` = round(`Total Branch Hours` / n, 1),
+    `Members` = n
+  ) |>
+  select(
+    `Assigned Branch`,
+    Members,
+    `Total Branch Hours`,
+    `Average Hours Per Member`
+  ) |>
+  arrange(desc(`Assigned Branch`))
+
+datatable(
+  branch_summary,
+  options = list(pageLength = 10, dom = "t"),
+  rownames = FALSE,
+  caption = htmltools::tags$caption(
+    style = "caption-side: bottom; text-align: left; color: #666;",
+    "Hours per member uses current membership count as denominator."
+  )
+)
+```
+
+### Monthly Hours by Branch
+
+The chart below shows contribution trends over time. Hover over bars for details.
+
+```{r branch_monthly_chart}
+branch_monthly <- volunteer_sheet_clean |>
+  filter(!(`Assigned Branch` %in% c("Exempt")), !is.na(`Assigned Branch`)) |>
+  group_by(year_month_factor, `Assigned Branch`) |>
+  summarise(total_hours = sum(Hours, na.rm = TRUE), .groups = "drop")
+
+p_stacked <- ggplot(
+  branch_monthly,
+  aes(
+    x = year_month_factor,
+    y = total_hours,
+    fill = `Assigned Branch`,
+    text = paste0(
+      `Assigned Branch`,
+      "<br>",
+      year_month_factor,
+      ": ",
+      round(total_hours),
+      " hrs"
+    )
+  )
+) +
+  geom_col() +
+  labs(
+    x = NULL,
+    y = "Hours",
+    fill = "Branch",
+    title = "Monthly Volunteer Hours — All Branches"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+
+ggplotly(p_stacked, tooltip = "text") |>
+  layout(legend = list(orientation = "h", y = -0.25))
+```
+
+### Per-Branch Trend (Faceted)
+
+```{r branch_facet_chart}
+p_facet <- ggplot(
+  branch_monthly,
+  aes(
+    x = year_month_factor,
+    y = total_hours,
+    fill = `Assigned Branch`,
+    text = paste0(
+      year_month_factor,
+      ": ",
+      round(total_hours),
+      " hrs"
+    )
+  )
+) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~`Assigned Branch`, scales = "free_y") +
+  labs(x = NULL, y = "Hours", title = "Monthly Hours per Branch") +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold")
+  )
+
+ggplotly(p_facet, tooltip = "text")
+```
+
+---
+
+## 👤 Individual Member Hours {#individual}
+
+### Are You Meeting the Minimum?
+
+The `r hours_threshold`-hour minimum is required for membership in good standing.
+Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold.
+
+```{r individual_chart}
+volunteer_totals_plot <- volunteer_sheet_clean |>
+  group_by(`Column 2`) |>
+  summarise(total_hours = sum(Hours, na.rm = TRUE)) |>
+  arrange(total_hours) |>
+  mutate(
+    member_factor = factor(`Column 2`, levels = `Column 2`),
+    status = ifelse(
+      total_hours >= hours_threshold,
+      "Met minimum",
+      "Below minimum"
+    ),
+    label_text = paste0(`Column 2`, ": ", round(total_hours), " hrs")
+  )
+
+p_individual <- ggplot(
+  volunteer_totals_plot,
+  aes(x = member_factor, y = total_hours, fill = status, text = label_text)
+) +
+  geom_col() +
+  geom_hline(
+    yintercept = hours_threshold,
+    linetype = "dashed",
+    colour = "black",
+    linewidth = 0.6
+  ) +
+  annotate(
+    "text",
+    x = 1,
+    y = hours_threshold + 2,
+    label = glue("{hours_threshold}-hr minimum"),
+    hjust = 0,
+    size = 3.2,
+    colour = "black"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Met minimum" = "#2c7a2e",
+      "Below minimum" = "#c0392b"
+    )
+  ) +
+  labs(
+    x = NULL,
+    y = "Total Hours",
+    fill = NULL,
+    title = "Cumulative Volunteer Hours per Member"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+
+p_individual
+```
+
+::: {.callout-warning title="Action required — members below minimum"}
+**`r members_under` members** have not yet reached `r hours_threshold` hours.
+If you are below the line, please contact your branch coordinator to find upcoming volunteer opportunities before the membership year closes.
+:::
+
+*Report generated automatically from club records on `r format(Sys.Date(), "%B %d, %Y")`.
+Contact the club secretary with any data discrepancies.*
