@@ -321,7 +321,7 @@ p_individual
 **`r members_under` members** have not yet reached `r hours_threshold` hours.
 If you are below the line, please contact your branch coordinator to find upcoming volunteer opportunities before the membership year closes.
 
-Also note some members joined later in the year and are only required to complete `r reduced_minimum` hours
+Also note some members (~18) joined later in the year and are only required to complete `r reduced_minimum` hours
 :::
 
 *Report generated automatically from club records on `r format(Sys.Date(), "%B %d, %Y")`.
