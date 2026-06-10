@@ -71,15 +71,17 @@ total_hours <- sum(volunteer_sheet_clean$Hours, na.rm = TRUE)
 total_members <- nrow(membership)
 hours_threshold <- 34 # minimum required hours
 reduced_minimum <- 20
-total_exec <- 9
+total_exec <- 8
 
 volunteer_totals <- volunteer_sheet_clean |>
   group_by(`Column 2`) |>
   summarise(total_hours = sum(Hours, na.rm = TRUE))
 
+participating_members <- total_members - total_exec - exempt
+
 members_over <- sum(volunteer_totals$total_hours > hours_threshold)
 members_under <- total_members - members_over - total_exec - exempt
-pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
+pct_compliant <- round(100 * members_over / participating_members)
 ```
 
 ---
@@ -89,6 +91,8 @@ pct_compliant <- round(100 * members_over / nrow(volunteer_totals))
 > *Data as of `r format(Sys.Date(), "%B %d, %Y")`*
 
 These three numbers tell the top-level story for the `r format(Sys.Date(), "%Y")` membership year. There are `r exempt` members who have requested accommodations of the total `r total_members` members.
+
+ The recorded hours does not include the exec committee (`r total_exec` people).
 
 ```{r kpi_cards}
 # Inline KPI summary rendered as an HTML table for visual emphasis
@@ -132,10 +136,6 @@ kpi_html <- glue(
 
 htmltools::HTML(kpi_html)
 ```
-
-::: {.callout-tip title="What this means for members"}
-A strong year overall — thank you to everyone who contributed! See below for the branch breakdown and to check your individual standing against the `r hours_threshold`-hour minimum.
-:::
 
 ---
 
@@ -257,7 +257,7 @@ ggplotly(p_facet, tooltip = "text")
 ### Are You Meeting the Minimum?
 
 The `r hours_threshold`-hour minimum is required for membership in good standing.
-Currently **`r members_over` of `r nrow(volunteer_totals)` members** (`r pct_compliant`%) have met or exceeded this threshold. The recorded hours does not include the exec committee (7 current, 2 past). There are also about `r total_members - nrow(volunteer_totals) - total_exec` members who haven't logged any hours
+Currently **`r members_over` of `r participating_members` members** (`r pct_compliant`%) have met or exceeded this threshold.
 
 ```{r individual_chart}
 volunteer_totals_plot <- volunteer_sheet_clean |>
