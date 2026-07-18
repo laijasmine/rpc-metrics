@@ -1,0 +1,220 @@
+---
+title: "Studio Use"
+format: html
+knitr:
+  opts_chunk: 
+    collapse: true
+    comment: "#" 
+    echo: false
+    message: false
+---
+
+```{r setup}
+library(googlesheets4)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(viridis)
+library(forcats)
+library(plotly)
+library(DT)
+library(glue)
+library(tidyr)
+```
+
+```{r google_sheet}
+membership_sheet <- "https://docs.google.com/spreadsheets/d/1Ldrcx_iVWi2Bv3GQoIHE2hOkf0Ah-nKVK3GFnXBXfts/edit?gid=1039957161#gid=1039957161"
+membership <- read_sheet(membership_sheet, sheet = "2025-2026")
+
+sheet <- "https://docs.google.com/spreadsheets/d/1-XhBYaeJI-uwPJsDb2ucxgnifXC1WdGjejI9a0QK0Po/edit?gid=1184437612#gid=1184437612"
+signin <- read_sheet(sheet)
+```
+
+```{r clean_up}
+signin_clean <- signin |>
+  select(Timestamp, `Column 2`, Action) |>
+  mutate(
+    date = date(Timestamp),
+    month = month(date),
+    day_of_week = wday(date, label = TRUE)
+  ) |>
+  rename("member" = "Column 2")
+```
+
+```{r signout_analysis}
+no_signout <- signin_clean |>
+  group_by(member, date) |>
+  count() |>
+  filter(n == 1) |>
+  nrow()
+
+multi_signin <- signin_clean |>
+  group_by(member, date) |>
+  count() |>
+  mutate(in_studio = n / 2) |>
+  filter(in_studio > 1)
+```
+
+### Data Limitations
+
+-   During this time members still signed in manually
+-   Some new member sign ins were not captured
+-   Not all sign out times were logged
+-   `r no_signout` of `r NROW(signin_clean)` (`r round((no_signout / NROW(signin_clean)) * 100, 2)` %) entries did not have a sign out
+
+### Findings
+
+```{r usage}
+people_per_day <- signin_clean |>
+  filter(Action == "Sign In") |>
+  group_by(date) |>
+  count() |>
+  mutate(month = month(date), day_of_week = wday(date, label = TRUE))
+```
+
+```{r}
+member_usage <- signin_clean |>
+  group_by(member) |>
+  count() |>
+  arrange(desc(n))
+```
+
+### By Person usage
+
+-   Only captures people using the sign in form
+-   `r NROW(member_usage)`/ `r NROW(membership)` (`r round((NROW(member_usage)/NROW(membership))*100, 2)` %) has been using the sign in form or coming into the studio
+
+#### Studio usage over days of the week
+
+```{r calendar_plot}
+day_levels <- c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+closed <- data.frame(
+  date = as.Date(c("2025-12-25", "2025-12-26", "2026-01-01")),
+  n = NA_integer_
+) |>
+  mutate(
+    week_start = floor_date(date, unit = "week", week_start = 1),
+    day_of_week = wday(date, label = TRUE)
+  )
+
+people_per_date_formatted <- people_per_day |>
+  filter(date > "2025-11-27") |>
+  mutate(week_start = floor_date(date, unit = "week", week_start = 1)) |>
+  select(date, week_start, day_of_week, n)
+
+plot_data <- bind_rows(people_per_date_formatted, closed) |>
+  mutate(
+    doy = factor(day_of_week, levels = rev(day_levels)),
+    tooltip_text = glue(
+      "{format(date, '%a, %b %d %Y')}\nSign Ins: {ifelse(is.na(n), 'Closed', n)}"
+    )
+  )
+
+plot <- plot_data |>
+  ggplot(aes(x = week_start, y = doy, fill = n, text = tooltip_text)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  scale_fill_viridis(name = "Sign Ins", na.value = "grey85") +
+  scale_x_date(
+    date_breaks = "1 week",
+    date_labels = "%b %d",
+    expand = c(0, 0)
+  ) +
+  labs(title = "Studio Sign Ins", x = "Week of", y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", size = 14)
+  )
+
+ggplotly(plot, tooltip = "text") |>
+  layout(hoverlabel = list(align = "left"))
+```
+
+```{r member_hours}
+duplicate_entry <- signin_clean |>
+  dplyr::summarise(n = dplyr::n(), .by = c(member, date, Action)) |>
+  dplyr::filter(n > 1L)
+
+member_time <- signin_clean |>
+  anti_join(duplicate_entry, by = join_by(member, date, Action)) |>
+  pivot_wider(names_from = Action, values_from = Timestamp) |>
+  filter(!is.na(`Sign In`)) |>
+  filter(!is.na(`Sign Out`)) |>
+  mutate(
+    month_start = floor_date(date, unit = "month"),
+    duration = time_length(interval(`Sign In`, `Sign Out`), unit = "minute")
+  ) |>
+  filter(duration > 10) |>
+  group_by(month_start) |>
+  summarise(avg_time_spent = round(mean(duration) / 60, 1))
+```
+
+#### Average Studio Use Length
+-   Members that did not sign in or out is excluded
+-   Assuming the Time stamp time was sign in sign out time
+-   Filtered out entries where there are multiple entries
+-   Average member use time `r mean(member_time$avg_time_spent)` hours
+-   This is constrained by classes in session and studio availability
+
+#### Average Member use per month
+
+```{r monthly_summary}
+monthly_usage <- people_per_day |>
+  mutate(month_start = floor_date(date, unit = "month")) |>
+  group_by(month_start) |>
+  summarise(
+    total_sign_ins = sum(n, na.rm = TRUE),
+    days_with_activity = n_distinct(date),
+    avg_sign_ins_per_day = round(total_sign_ins / days_with_activity, 1),
+    .groups = "drop"
+  ) |>
+  arrange(month_start) |>
+  mutate(
+    Month = format(month_start, "%B %Y"),
+  ) |>
+  left_join(member_time, by = join_by(month_start == month_start)) |>
+  select(
+    Month,
+    `Total Sign Ins` = total_sign_ins,
+    `Days Active` = days_with_activity,
+    `Average number of sign ins per Active Day` = avg_sign_ins_per_day,
+    `Average number of hours spent` = avg_time_spent
+  )
+
+datatable(
+  monthly_usage,
+  rownames = FALSE,
+  options = list(
+    dom = "t",
+    ordering = FALSE,
+    pageLength = nrow(monthly_usage)
+  ),
+  caption = "Studio Usage by Month"
+) |>
+  formatStyle(
+    "Total Sign Ins",
+    background = styleColorBar(
+      range(monthly_usage$`Total Sign Ins`),
+      "lightblue"
+    ),
+    backgroundSize = "98% 88%",
+    backgroundRepeat = "no-repeat",
+    backgroundPosition = "center"
+  ) |>
+  formatStyle(
+    "Average number of sign ins per Active Day",
+    background = styleColorBar(
+      range(monthly_usage$`Average number of sign ins per Active Day`),
+      "#fdd49e"
+    ),
+    backgroundSize = "98% 88%",
+    backgroundRepeat = "no-repeat",
+    backgroundPosition = "center"
+  ) |>
+  formatStyle(
+    "Month",
+    fontWeight = "bold"
+  )
+```
