@@ -62,8 +62,6 @@ multi_signin <- signin_clean |>
 -   Not all sign out times were logged
 -   `r no_signout` of `r NROW(signin_clean)` (`r round((no_signout / NROW(signin_clean)) * 100, 2)` %) entries did not have a sign out
 
-### Findings
-
 ```{r usage}
 people_per_day <- signin_clean |>
   filter(Action == "Sign In") |>
@@ -77,6 +75,8 @@ member_usage <- signin_clean |>
   group_by(member) |>
   count() |>
   arrange(desc(n))
+
+# membership[["Full Name"]][!(membership[["Full Name"]] %in% member_usage$member)]
 ```
 
 ### By Person usage
@@ -124,7 +124,7 @@ plot <- plot_data |>
   theme_minimal(base_size = 12) +
   theme(
     panel.grid = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.x = element_text(angle = 45, hjust = 2),
     plot.title = element_text(face = "bold", size = 14)
   )
 
