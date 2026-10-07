@@ -124,7 +124,7 @@ plot <- plot_data |>
   theme_minimal(base_size = 12) +
   theme(
     panel.grid = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 2),
+    axis.text.x = element_text(angle = 90, hjust = 2),
     plot.title = element_text(face = "bold", size = 14)
   )
 
@@ -149,6 +149,70 @@ member_time <- signin_clean |>
   filter(duration > 10) |>
   group_by(month_start) |>
   summarise(avg_time_spent = round(mean(duration) / 60, 1))
+```
+
+```{r anunual_hours}
+duplicate_entry <- signin_clean |>
+  dplyr::summarise(n = dplyr::n(), .by = c(member, date, Action)) |>
+  dplyr::filter(n > 1L)
+
+member_time_studio <- signin_clean |>
+  anti_join(duplicate_entry, by = join_by(member, date, Action)) |>
+  pivot_wider(names_from = Action, values_from = Timestamp) |>
+  filter(!is.na(`Sign In`)) |>
+  filter(!is.na(`Sign Out`)) |>
+  mutate(
+    duration = time_length(interval(`Sign In`, `Sign Out`), unit = "minute"),
+    hour = hour(`Sign In`),
+    date = wday(date, label = TRUE),
+    month_year = glue("{year(`Sign In`)} {month(month, label = TRUE)}")
+  ) |>
+  filter(duration > 10)
+# removes any short entries (manualy entered)
+```
+
+```{r all_time_average}
+time_data <- member_time_studio |>
+  mutate(day = date(`Sign In`)) |>
+  count(hour, date, day) |>
+  arrange(date, day) |>
+  group_by(date, hour) |>
+  summarise(average = mean(n))
+
+time_plot <- time_data |>
+  ggplot(aes(x = date, y = hour, fill = average)) +
+  geom_tile(color = 'White', linewidth = 0.1) +
+  scale_fill_viridis(name = "Sign Ins") +
+  coord_equal() +
+  ggtitle("Average Studio Sign Ins by the Hour Per Day of Week") +
+  xlab("Date") +
+  ylab("Hour") +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
+  )
+
+ggplotly(time_plot)
+```
+
+```{r all_time_raw}
+time_data_day <- member_time_studio |>
+  mutate(day = date(`Sign In`)) |>
+  count(hour, date, day) |>
+  arrange(date, day)
+
+time_plot <- time_data_day |>
+  ggplot(aes(x = day, y = hour, fill = n)) +
+  geom_tile(color = 'White', linewidth = 0.1) +
+  scale_fill_viridis(name = "Sign Ins") +
+  coord_equal() +
+  ggtitle("Studio Sign Ins by the Hour Per Day of Week") +
+  xlab("Date") +
+  ylab("Hour") +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
+  )
+
+ggplotly(time_plot)
 ```
 
 #### Average Studio Use Length
